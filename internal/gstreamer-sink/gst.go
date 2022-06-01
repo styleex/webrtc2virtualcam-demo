@@ -34,7 +34,7 @@ func CreatePipeline(payloadType webrtc.PayloadType, codecName string) *Pipeline 
 	pipelineStr := "appsrc format=time is-live=true do-timestamp=true name=src ! application/x-rtp"
 
 	//videoOutput := "autodvideosink"
-	videoOutput := "queue ! videoconvert ! video/x-raw, format=xRGB ! videorate ! video/x-raw, framerate=30/1  ! videoscale ! video/x-raw, width=320, height=240  ! queue ! v4l2sink device=/dev/video42"
+	videoOutput := "queue ! videorate ! video/x-raw, framerate=10/1 ! queue ! videoconvert ! video/x-raw, format=xRGB  ! videoscale ! video/x-raw, width=1024, height=768  ! queue leaky=2 silent=true ! v4l2sink device=/dev/video42"
 
 	switch strings.ToLower(codecName) {
 	case "vp8":

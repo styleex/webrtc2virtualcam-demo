@@ -38,16 +38,20 @@ pc.onicecandidate = event => {
 }
 
 window.startSession = () => {
-  let sd = document.getElementById('remoteSessionDescription').value
-  if (sd === '') {
-    return alert('Session Description must not be empty')
-  }
-
-  try {
-    pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
-  } catch (e) {
-    alert(e)
-  }
+  const offer = document.getElementById('localSessionDescription').value;
+  fetch("/call", {
+    method: "POST",
+    body: JSON.stringify({
+      "offer": offer,
+    })
+  }).then(async (resp) => {
+    const respData = await resp.json();
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(respData.answer))))
+    } catch (e) {
+      alert(e)
+    }
+  })
 }
 
 window.addDisplayCapture = () => {

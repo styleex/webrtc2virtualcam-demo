@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
 	"runtime"
 	"strings"
 	"time"
@@ -15,7 +18,7 @@ import (
 
 // gstreamerReceiveMain is launched in a goroutine because the main thread is needed
 // for Glib's main loop (Gstreamer uses Glib)
-func gstreamerReceiveMain() {
+func gstreamerReceiveMain(offerString string) string {
 	// Everything below is the pion-WebRTC API! Thanks for using it ❤️.
 
 	// Prepare the configuration
@@ -66,7 +69,7 @@ func gstreamerReceiveMain() {
 
 	// Wait for the offer to be pasted
 	offer := webrtc.SessionDescription{}
-	signal.Decode(signal.MustReadStdin(), &offer)
+	signal.Decode(offerString, &offer)
 
 	// Set the remote SessionDescription
 	err = peerConnection.SetRemoteDescription(offer)
@@ -95,10 +98,7 @@ func gstreamerReceiveMain() {
 	<-gatherComplete
 
 	// Output the answer in base64 so we can paste it in browser
-	fmt.Println(signal.Encode(*peerConnection.LocalDescription()))
-
-	// Block forever
-	select {}
+	return signal.Encode(*peerConnection.LocalDescription())
 }
 
 func init() {
@@ -107,11 +107,74 @@ func init() {
 	runtime.LockOSThread()
 }
 
-func app() {
+type M map[string]interface{}
 
-	http.
-	// Start a new thread to do the actual work for this application
-	go gstreamerReceiveMain()
+func writeJson(w http.ResponseWriter, r *http.Request, data interface{}) {
+	respBytes, err := json.Marshal(data)
+	if err != nil {
+		log.Fatalf("Failed to serialize response: %s", err)
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(200)
+	if _, err := w.Write(respBytes); err != nil {
+		log.Printf("Failed to write resp to client: %s", err)
+	}
+}
+
+func writeError(w http.ResponseWriter, r *http.Request, respErr error) {
+	respBytes, err := json.Marshal(M{
+		"success": false,
+		"error":   respErr.Error(),
+	})
+	if err != nil {
+		log.Fatalf("Failed to serialize error response: %s (err=%s)", err, respErr.Error())
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(500)
+	if _, err := w.Write(respBytes); err != nil {
+		log.Printf("Failed to write resp to client: %s", err)
+	}
+}
+
+func app() {
+	mux := http.NewServeMux()
+
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			w.WriteHeader(404)
+			return
+		}
+		http.ServeFile(w, r, "static/index.html")
+	})
+
+	mux.HandleFunc("/call", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(405)
+			return
+		}
+
+		var req struct {
+			Offer string `json:"offer"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			log.Printf("Failed to decode request: %s", err)
+			writeError(w, r, fmt.Errorf("failed to decode request: %s", err))
+			return
+		}
+
+		writeJson(w, r, M{
+			"answer": gstreamerReceiveMain(req.Offer),
+		})
+	})
+
+	log.Println("Listen on :8888")
+	if err := http.ListenAndServe("0.0.0.0:8888", mux); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
