@@ -1,0 +1,25 @@
+<html>
+<head>
+    <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+Browser base64 Session Description<br />
+<textarea id="localSessionDescription" readonly="true"></textarea> <br />
+
+Golang base64 Session Description<br />
+<textarea id="remoteSessionDescription"></textarea> <br/>
+<button onclick="window.startSession()"> Start Session </button>
+<button onclick="window.addDisplayCapture()" id="displayCapture"> Display Capture </button><br />
+
+<br />
+
+Video<br />
+<div id="localVideos"></div> <br />
+
+
+Logs<br />
+<div id="logs"></div>
+
+<script type="text/javascript" src="demo.js"/>
+</body>
+</html>
